@@ -51,6 +51,7 @@
 #include "ngx_http_lua_socket_tcp.h"
 #include "ngx_http_lua_ssl_certby.h"
 #include "ngx_http_lua_ssl.h"
+#include "ngx_http_lua_graphite.h"
 
 
 #if 1
@@ -709,7 +710,7 @@ static void
 ngx_http_lua_inject_ngx_api(lua_State *L, ngx_http_lua_main_conf_t *lmcf,
     ngx_log_t *log)
 {
-    lua_createtable(L, 0 /* narr */, 116 /* nrec */);    /* ngx.* */
+    lua_createtable(L, 0 /* narr */, 117 /* nrec */);    /* ngx.* */
 
     lua_pushcfunction(L, ngx_http_lua_get_raw_phase_context);
     lua_setfield(L, -2, "_phase_ctx");
@@ -743,6 +744,7 @@ ngx_http_lua_inject_ngx_api(lua_State *L, ngx_http_lua_main_conf_t *lmcf,
     ngx_http_lua_inject_timer_api(L);
     ngx_http_lua_inject_config_api(L);
     ngx_http_lua_inject_worker_api(L);
+    ngx_http_lua_inject_graphite_api(L);
 
     ngx_http_lua_inject_misc_api(L);
 
