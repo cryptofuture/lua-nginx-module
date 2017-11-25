@@ -10,7 +10,7 @@ Production ready.
 
 = Version =
 
-This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.10.10] released on 8 August 2017.
+This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.10.11] released on 3 November 2017.
 
 = Synopsis =
 <geshi lang="nginx">
@@ -186,6 +186,8 @@ The Lua state (Lua VM instance) is shared across all the requests handled by a s
 
 The latest version of this module is compatible with the following versions of Nginx:
 
+* 1.13.x  (last tested: 1.13.6)
+* 1.12.x
 * 1.11.x  (last tested: 1.11.2)
 * 1.10.x
 * 1.9.x (last tested: 1.9.15)
@@ -209,9 +211,9 @@ Alternatively, ngx_lua can be manually compiled into Nginx:
 Build the source with this module:
 
 <geshi lang="bash">
-    wget 'http://nginx.org/download/nginx-1.11.2.tar.gz'
-    tar -xzvf nginx-1.11.2.tar.gz
-    cd nginx-1.11.2/
+    wget 'http://nginx.org/download/nginx-1.13.6.tar.gz'
+    tar -xzvf nginx-1.13.6.tar.gz
+    cd nginx-1.13.6/
 
     # tell nginx's build system where to find LuaJIT 2.0:
     export LUAJIT_LIB=/path/to/luajit/lib
@@ -706,6 +708,7 @@ Nginx may terminate a request early with (at least):
 * 400 (Bad Request)
 * 405 (Not Allowed)
 * 408 (Request Timeout)
+* 413 (Request Entity Too Large)
 * 414 (Request URI Too Large)
 * 494 (Request Headers Too Large)
 * 499 (Client Closed Request)
@@ -1193,6 +1196,8 @@ This hook is often used to create per-worker reoccurring timers (via the [[#ngx.
 
 This directive was first introduced in the <code>v0.9.5</code> release.
 
+This hook no longer runs in the cache manager and cache loader processes since the <code>v0.10.12</code> release.
+
 == init_worker_by_lua_block ==
 
 '''syntax:''' ''init_worker_by_lua_block { lua-script }''
@@ -1216,6 +1221,8 @@ For instance,
 
 This directive was first introduced in the <code>v0.9.17</code> release.
 
+This hook no longer runs in the cache manager and cache loader processes since the <code>v0.10.12</code> release.
+
 == init_worker_by_lua_file ==
 
 '''syntax:''' ''init_worker_by_lua_file <lua-file-path>''
@@ -1227,6 +1234,8 @@ This directive was first introduced in the <code>v0.9.17</code> release.
 Similar to [[#init_worker_by_lua|init_worker_by_lua]], but accepts the file path to a Lua source file or Lua bytecode file.
 
 This directive was first introduced in the <code>v0.9.5</code> release.
+
+This hook no longer runs in the cache manager and cache loader processes since the <code>v0.10.12</code> release.
 
 == set_by_lua ==
 
