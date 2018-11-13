@@ -737,7 +737,7 @@ static void
 ngx_http_lua_inject_ngx_api(lua_State *L, ngx_http_lua_main_conf_t *lmcf,
     ngx_log_t *log)
 {
-    lua_createtable(L, 0 /* narr */, 117 /* nrec */);    /* ngx.* */
+    lua_createtable(L, 0 /* narr */, 118 /* nrec */);    /* ngx.* */
 
     lua_pushcfunction(L, ngx_http_lua_get_raw_phase_context);
     lua_setfield(L, -2, "_phase_ctx");
@@ -1082,6 +1082,17 @@ ngx_http_lua_run_thread(lua_State *L, ngx_http_request_t *r,
                                 == lua_gettop(orig_coctx->co));
 
             rv = lua_resume(orig_coctx->co, nrets);
+
+#ifdef NGX_GRAPHITE_PATCH
+            struct timeval start_tp;
+            ngx_gettimeofday(&start_tp);
+#endif
+            rv = lua_resume(orig_coctx->co, nrets);
+#ifdef NGX_GRAPHITE_PATCH
+            struct timeval stop_tp;
+            ngx_gettimeofday(&stop_tp);
+            r->lua_time += (stop_tp.tv_sec - start_tp.tv_sec) * 1000 + (stop_tp.tv_usec - start_tp.tv_usec) / 1000;
+#endif
 
 #if (NGX_PCRE)
             /* XXX: work-around to nginx regex subsystem */

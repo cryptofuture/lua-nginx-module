@@ -4,47 +4,42 @@
 #include "ddebug.h"
 
 
+#include "ngx_http_graphite_module.h"
 #include "ngx_http_lua_graphite.h"
 #include "ngx_http_lua_util.h"
 
 
-typedef ngx_int_t (*ngx_http_graphite_custom_pt)(ngx_http_request_t*, ngx_str_t*, double);
-
-
-static ngx_http_graphite_custom_pt custom_pt = NULL;
-static int ngx_http_lua_graphite_custom(lua_State *L);
+static int ngx_http_lua_graphite(lua_State *L);
+static int ngx_http_lua_graphite_get(lua_State *L);
+static int ngx_http_lua_graphite_set(lua_State *L);
 
 
 void
 ngx_http_lua_inject_graphite_api(lua_State *L)
 {
-    ngx_str_t name = ngx_string("graphite_custom");
+    lua_createtable(L, 0, 2);
+    lua_newtable(L);
+    lua_pushcfunction(L, ngx_http_lua_graphite);
+    lua_setfield(L, -2, "__call");
+    lua_setmetatable(L, -2);
 
-    int i;
-    for (i = 0; ngx_modules[i]; i++) {
+    lua_pushcfunction(L, ngx_http_lua_graphite_get);
+    lua_setfield(L, -2, "get");
 
-        ngx_module_t *module = ngx_modules[i];
-        if (module->type != NGX_HTTP_MODULE)
-            continue;
+    lua_pushcfunction(L, ngx_http_lua_graphite_set);
+    lua_setfield(L, -2, "set");
 
-        ngx_command_t *cmd = module->commands;
-        if (cmd == NULL)
-            continue;
-
-        for (; cmd->name.len; cmd++) {
-            if ((cmd->name.len == name.len) && (ngx_strncmp(cmd->name.data, name.data, name.len) == 0)) {
-                custom_pt = cmd->post;
-            }
-        }
-    }
-
-    lua_pushcfunction(L, ngx_http_lua_graphite_custom);
     lua_setfield(L, -2, "graphite");
 }
 
 
 static int
-ngx_http_lua_graphite_custom(lua_State *L) {
+ngx_http_lua_graphite(lua_State *L) {
+
+    size_t n = lua_gettop(L) - 1;
+    if (n != 2 && n != 3) {
+        return luaL_error(L, "ngx.graphite expecting 2 or 3 arguments got %d", n);
+    }
 
     ngx_http_request_t *r;
     r = ngx_http_lua_get_req(L);
@@ -53,17 +48,73 @@ ngx_http_lua_graphite_custom(lua_State *L) {
         return luaL_error(L, "no request object found");
     }
 
-    double value = lua_tonumber(L, -1);
-    lua_pop(L, 1);
-
     ngx_str_t name;
-    name.data = (u_char*)lua_tolstring(L, -1, &name.len);
+    name.data = (u_char*)lua_tolstring(L, 2, &name.len);
     if (name.data == NULL)
         return 0;
-    lua_pop(L, 1);
 
-    if (custom_pt)
-        custom_pt(r, &name, value);
+    double value = lua_tonumber(L, 3);
+    const char *config = NULL;
+    if (n == 3)
+        config = lua_tostring(L, 4);
+
+    ngx_http_graphite(r, &name, value, config);
+
+    return 0;
+}
+
+
+static int
+ngx_http_lua_graphite_get(lua_State *L) {
+
+    size_t n = lua_gettop(L);
+    if (n != 1) {
+        return luaL_error(L, "ngx.graphite.get expecting 1 argument got %d", n);
+    }
+
+    ngx_http_request_t *r;
+    r = ngx_http_lua_get_req(L);
+
+    if (r == NULL) {
+        return luaL_error(L, "no request object found");
+    }
+
+    ngx_str_t name;
+    name.data = (u_char*)lua_tolstring(L, 1, &name.len);
+    if (name.data == NULL)
+        return 0;
+
+    double value = ngx_http_graphite_get(r, &name);
+
+    lua_pushnumber(L, value);
+
+    return 1;
+}
+
+
+static int
+ngx_http_lua_graphite_set(lua_State *L) {
+
+    size_t n = lua_gettop(L);
+    if (n != 2) {
+        return luaL_error(L, "ngx.graphite.get expecting 2 arguments got %d", n);
+    }
+
+    ngx_http_request_t *r;
+    r = ngx_http_lua_get_req(L);
+
+    if (r == NULL) {
+        return luaL_error(L, "no request object found");
+    }
+
+    ngx_str_t name;
+    name.data = (u_char*)lua_tolstring(L, 1, &name.len);
+    if (name.data == NULL)
+        return 0;
+
+    double value = lua_tonumber(L, 2);
+
+    ngx_http_graphite_set(r, &name, value);
 
     return 0;
 }
