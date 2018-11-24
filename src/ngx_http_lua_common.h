@@ -139,9 +139,12 @@ typedef struct {
 #define NGX_HTTP_LUA_FFI_BAD_CONTEXT        -101
 #endif
 
-
+#if (NGX_PTR_SIZE >= 8)
 #define ngx_http_lua_lightudata_mask(ludata)                                 \
     ((void *) ((uintptr_t) (&ngx_http_lua_##ludata) & ((1UL << 47) - 1)))
+#else
+#define ngx_http_lua_lightudata_mask(ludata)    (&ngx_http_lua_##ludata)
+#endif
 
 
 typedef struct ngx_http_lua_main_conf_s  ngx_http_lua_main_conf_t;
