@@ -146,6 +146,10 @@ typedef struct {
 #define ngx_http_lua_lightudata_mask(ludata)    (&ngx_http_lua_##ludata)
 #endif
 
+#else
+#define ngx_http_lua_lightudata_mask(ludata)    (&ngx_http_lua_##ludata)
+#endif
+
 
 typedef struct ngx_http_lua_main_conf_s  ngx_http_lua_main_conf_t;
 typedef union ngx_http_lua_srv_conf_u  ngx_http_lua_srv_conf_t;
