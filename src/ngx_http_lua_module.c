@@ -29,6 +29,7 @@
 #include "ngx_http_lua_ssl_session_storeby.h"
 #include "ngx_http_lua_ssl_session_fetchby.h"
 #include "ngx_http_lua_headers.h"
+#include "ngx_http_lua_pipe.h"
 
 
 static void *ngx_http_lua_create_main_conf(ngx_conf_t *cf);
@@ -75,6 +76,13 @@ static ngx_conf_bitmask_t  ngx_http_lua_ssl_protocols[] = {
 
 
 static ngx_command_t ngx_http_lua_cmds[] = {
+
+    { ngx_string("lua_load_resty_core"),
+      NGX_HTTP_MAIN_CONF|NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_MAIN_CONF_OFFSET,
+      offsetof(ngx_http_lua_main_conf_t, load_resty_core),
+      NULL },
 
     { ngx_string("lua_max_running_timers"),
       NGX_HTTP_MAIN_CONF|NGX_CONF_TAKE1,
@@ -647,6 +655,10 @@ ngx_http_lua_init(ngx_conf_t *cf)
 #endif
     ngx_str_t                   name = ngx_string("host");
 
+    if (ngx_process == NGX_PROCESS_SIGNALLER || ngx_test_config) {
+        return NGX_OK;
+    }
+
     lmcf = ngx_http_conf_get_module_main_conf(cf, ngx_http_lua_module);
 
     lmcf->host_var_index = ngx_http_get_variable_index(cf, &name);
@@ -738,6 +750,11 @@ ngx_http_lua_init(ngx_conf_t *cf)
 
     cln->data = lmcf;
     cln->handler = ngx_http_lua_sema_mm_cleanup;
+
+#ifdef HAVE_NGX_LUA_PIPE
+    ngx_http_lua_pipe_init();
+#endif
+
 #endif
 
 #if nginx_version >= 1011011
@@ -867,6 +884,7 @@ ngx_http_lua_create_main_conf(ngx_conf_t *cf)
      */
 
     lmcf->pool = cf->pool;
+    lmcf->load_resty_core = NGX_CONF_UNSET;
     lmcf->max_pending_timers = NGX_CONF_UNSET;
     lmcf->max_running_timers = NGX_CONF_UNSET;
 #if (NGX_PCRE)
@@ -899,6 +917,10 @@ static char *
 ngx_http_lua_init_main_conf(ngx_conf_t *cf, void *conf)
 {
     ngx_http_lua_main_conf_t *lmcf = conf;
+
+    if (lmcf->load_resty_core == NGX_CONF_UNSET) {
+        lmcf->load_resty_core = 1;
+    }
 
 #if (NGX_PCRE)
     if (lmcf->regex_cache_max_entries == NGX_CONF_UNSET) {

@@ -2,6 +2,8 @@
 
 ngx_http_lua_module - Embed the power of Lua into Nginx HTTP Servers.
 
+This module is a core component of OpenResty. If you are using this module, then you are essentially using OpenResty :)
+
 ''This module is not distributed with the Nginx source.'' See [[#Installation|the installation instructions]].
 
 = Status =
@@ -10,7 +12,7 @@ Production ready.
 
 = Version =
 
-This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.10.13] released on 22 April 2018.
+This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.10.15] released on March 14th, 2019.
 
 = Synopsis =
 <geshi lang="nginx">
@@ -129,6 +131,8 @@ This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/t
 </geshi>
 
 = Description =
+
+This module is a core component of OpenResty. If you are using this module, then you are essentially using OpenResty :)
 
 This module embeds Lua, via [http://luajit.org/luajit.html LuaJIT 2.0/2.1], into Nginx and by leveraging Nginx's subrequests, allows the integration of the powerful Lua threads (Lua coroutines) into the Nginx event model.
 
@@ -786,7 +790,7 @@ This module is licensed under the BSD license.
 
 Copyright (C) 2009-2017, by Xiaozhe Wang (chaoslawful) <chaoslawful@gmail.com>.
 
-Copyright (C) 2009-2018, by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>, OpenResty Inc.
+Copyright (C) 2009-2019, by Yichun "agentzh" Zhang (章亦春) <agentzh@gmail.com>, OpenResty Inc.
 
 All rights reserved.
 
@@ -830,6 +834,34 @@ The basic building blocks of scripting Nginx with Lua are directives. Directives
 how the result will be used. Below is a diagram showing the order in which directives are executed.
 
 ![Lua Nginx Modules Directives](https://cloud.githubusercontent.com/assets/2137369/15272097/77d1c09e-1a37-11e6-97ef-d9767035fc3e.png)
+
+== lua_load_resty_core ==
+
+'''syntax:''' ''lua_load_resty_core on|off''
+
+'''default:''' ''lua_load_resty_core on''
+
+'''context:''' ''http''
+
+Controls whether the <code>resty.core</code> module (from
+[https://github.com/openresty/lua-resty-core lua-resty-core]) should be loaded
+or not. When enabled, this directive is equivalent to executing the following
+when the Lua VM is created:
+
+<geshi lang="lua">
+    require "resty.core"
+</geshi>
+
+Note that usage of the <code>resty.core</code> module is recommended, as its
+FFI implementation is both faster, safer, and more complete than the Lua C API
+of the ngx_lua module.
+
+It must also be noted that the Lua C API of the ngx_lua module will eventually
+be removed, and usage of the FFI-based API (i.e. the <code>resty.core</code>
+module) will become mandatory. This directive only aims at providing a
+temporary backwards-compatibility mode in case of edge-cases.
+
+This directive was first introduced in the <code>v0.10.15</code> release.
 
 == lua_capture_error_log ==
 '''syntax:''' ''lua_capture_error_log size''
@@ -3433,24 +3465,6 @@ to be returned when reading <code>ngx.header.Foo</code>.
 
 Note that <code>ngx.header</code> is not a normal Lua table and as such, it is not possible to iterate through it using the Lua <code>ipairs</code> function.
 
-Note: if the current response does not have a Content-Type header, but you use
-<code>ngx.header</code> to attempt retrieving it, a side effect will be that a
-Content-Type header will be created and returned according to your nginx
-configuration.
-
-For example:
-
-<geshi lang="nginx">
-    location = /t {
-        default_type text/html;
-        content_by_lua_block {
-            -- even if the response had no Content-Type header,
-            -- it will now have: Content-Type: text/html
-            ngx.say(ngx.header['Content-Type'])
-        }
-    }
-</geshi>
-
 For reading ''request'' headers, use the [[#ngx.req.get_headers|ngx.req.get_headers]] function instead.
 
 == ngx.resp.get_headers ==
@@ -3470,23 +3484,6 @@ end
 for k, v in pairs(h) do
     ...
 end
-</geshi>
-
-Note: if the current response does not have a Content-Type header, but you use
-<code>ngx.resp.get_headers</code>, a side effect will be that a Content-Type
-header will be created and returned according to your nginx configuration.
-
-For example:
-
-<geshi lang="nginx">
-    location = /t {
-        default_type text/html;
-        content_by_lua_block {
-            -- even if the response had no Content-Type header,
-            -- it will now have: Content-Type: text/html
-            ngx.say(ngx.resp.get_headers()['Content-Type'])
-        }
-    }
 </geshi>
 
 This function has the same signature as [[#ngx.req.get_headers|ngx.req.get_headers]] except getting response headers instead of request headers.
@@ -6014,6 +6011,43 @@ An optional Lua table can be specified as the last argument to this method to sp
 * <code>pool</code>
 : specify a custom name for the connection pool being used. If omitted, then the connection pool name will be generated from the string template <code>"<host>:<port>"</code> or <code>"<unix-socket-path>"</code>.
 
+* <code>pool_size</code>
+: specify the size of the connection pool. If omitted and no
+: <code>backlog</code> option was provided, no pool will be created. If omitted
+: but <code>backlog</code> was provided, the pool will be created with a default
+: size equal to the value of the [[#lua_socket_pool_size|lua_socket_pool_size]]
+: directive.
+: The connection pool holds up to <code>pool_size</code> alive connections
+: ready to be reused by subsequent calls to [[#tcpsock:connect|connect]], but
+: note that there is no upper limit to the total number of opened connections
+: outside of the pool. If you need to restrict the total number of opened
+: connections, specify the <code>backlog</code> option.
+: When the connection pool would exceed its size limit, the least recently used
+: (kept-alive) connection already in the pool will be closed to make room for
+: the current connection.
+: Note that the cosocket connection pool is per Nginx worker process rather
+: than per Nginx server instance, so the size limit specified here also applies
+: to every single Nginx worker process. Also note that the size of the connection
+: pool cannot be changed once it has been created.
+: This option was first introduced in the <code>v0.10.14</code> release.
+
+* <code>backlog</code>
+: if specified, this module will limit the total number of opened connections
+: for this pool. No more connections than <code>pool_size</code> can be opened
+: for this pool at any time. If the connection pool is full, subsequent
+: connect operations will be queued into a queue equal to this option's
+: value (the "backlog" queue).
+: If the number of queued connect operations is equal to <code>backlog</code>,
+: subsequent connect operations will fail and return <code>nil</code> plus the
+: error string <code>"too many waiting connect operations"</code>.
+: The queued connect operations will be resumed once the number of connections
+: in the pool is less than <code>pool_size</code>.
+: The queued connect operation will abort once they have been queued for more
+: than <code>connect_timeout</code>, controlled by
+: [[#tcpsock:settimeouts|settimeouts]], and will return <code>nil</code> plus
+: the error string <code>"timeout"</code>.
+: This option was first introduced in the <code>v0.10.14</code> release.
+
 The support for the options table argument was first introduced in the <code>v0.5.7</code> release.
 
 This method was first introduced in the <code>v0.5.0rc1</code> release.
@@ -6308,13 +6342,31 @@ Puts the current socket's connection immediately into the cosocket built-in conn
 
 The first optional argument, <code>timeout</code>, can be used to specify the maximal idle timeout (in milliseconds) for the current connection. If omitted, the default setting in the [[#lua_socket_keepalive_timeout|lua_socket_keepalive_timeout]] config directive will be used. If the <code>0</code> value is given, then the timeout interval is unlimited.
 
-The second optional argument, <code>size</code>, can be used to specify the maximal number of connections allowed in the connection pool for the current server (i.e., the current host-port pair or the unix domain socket file path). Note that the size of the connection pool cannot be changed once the pool is created. When this argument is omitted, the default setting in the [[#lua_socket_pool_size|lua_socket_pool_size]] config directive will be used.
-
-When the connection pool exceeds the available size limit, the least recently used (idle) connection already in the pool will be closed to make room for the current connection.
-
-Note that the cosocket connection pool is per Nginx worker process rather than per Nginx server instance, so the size limit specified here also applies to every single Nginx worker process.
-
-Idle connections in the pool will be monitored for any exceptional events like connection abortion or unexpected incoming data on the line, in which cases the connection in question will be closed and removed from the pool.
+The second optional argument <code>size</code> is considered deprecated since
+the <code>v0.10.14</code> release of this module, in favor of the
+<code>pool_size</code> option of the [[#tcpsock:connect|connect]] method.
+Since the <code>v0.10.14</code> release, this option will only take effect if
+the call to [[#tcpsock:connect|connect]] did not already create a connection
+pool.
+When this option takes effect (no connection pool was previously created by
+[[#tcpsock:connect|connect]]), it will specify the size of the connection pool,
+and create it.
+If omitted (and no pool was previously created), the default size is the value
+of the [[#lua_socket_pool_size|lua_socket_pool_size]] directive.
+The connection pool holds up to <code>size</code> alive connections ready to be
+reused by subsequent calls to [[#tcpsock:connect|connect]], but note that there
+is no upper limit to the total number of opened connections outside of the
+pool.
+When the connection pool would exceed its size limit, the least recently used
+(kept-alive) connection already in the pool will be closed to make room for
+the current connection.
+Note that the cosocket connection pool is per Nginx worker process rather
+than per Nginx server instance, so the size limit specified here also applies
+to every single Nginx worker process. Also note that the size of the connection
+pool cannot be changed once it has been created.
+If you need to restrict the total number of opened connections, specify both
+the <code>pool_size</code> and <code>backlog</code> option in the call to
+[[#tcpsock:connect|connect]].
 
 In case of success, this method returns <code>1</code>; otherwise, it returns <code>nil</code> and a string describing the error.
 
