@@ -252,6 +252,8 @@ Nginx Compatibility
 
 The latest version of this module is compatible with the following versions of Nginx:
 
+* 1.15.x  (last tested: 1.15.8)
+* 1.14.x
 * 1.13.x  (last tested: 1.13.6)
 * 1.12.x
 * 1.11.x  (last tested: 1.11.2)
@@ -6738,7 +6740,7 @@ ngx.shared.DICT.flush_expired
 
 Flushes out the expired items in the dictionary, up to the maximal number specified by the optional `max_count` argument. When the `max_count` argument is given `0` or not given at all, then it means unlimited. Returns the number of items that have actually been flushed.
 
-Unlike the [flush_all](#ngxshareddictflush_all) method, this method actually free up the memory used by the expired items.
+Unlike the [flush_all](#ngxshareddictflush_all) method, this method actually frees up the memory used by the expired items.
 
 This feature was first introduced in the `v0.6.3` release.
 
@@ -7310,7 +7312,7 @@ Timeout for the reading operation is controlled by the [lua_socket_read_timeout]
 ```lua
 
  sock:settimeouts(1000, 1000, 1000)  -- one second timeout for connect/read/write
- local data, err = sock:receiveany(10 * 1024 * 1024) -- read any data, at most 10K
+ local data, err = sock:receiveany(10 * 1024) -- read any data, at most 10K
  if not data then
      ngx.say("failed to read any data: ", err)
      return
