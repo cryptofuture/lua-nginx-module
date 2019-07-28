@@ -39,6 +39,7 @@ ngx_http_lua_ssl_sess_store_handler_file(ngx_http_request_t *r,
 
     rc = ngx_http_lua_cache_loadfile(r->connection->log, L,
                                      lscf->srv.ssl_sess_store_src.data,
+                                     &lscf->srv.ssl_sess_store_src_ref,
                                      lscf->srv.ssl_sess_store_src_key);
     if (rc != NGX_OK) {
         return rc;
@@ -61,6 +62,7 @@ ngx_http_lua_ssl_sess_store_handler_inline(ngx_http_request_t *r,
     rc = ngx_http_lua_cache_loadbuffer(r->connection->log, L,
                                        lscf->srv.ssl_sess_store_src.data,
                                        lscf->srv.ssl_sess_store_src.len,
+                                       &lscf->srv.ssl_sess_store_src_ref,
                                        lscf->srv.ssl_sess_store_src_key,
                                        "=ssl_session_store_by_lua_block");
     if (rc != NGX_OK) {
@@ -98,7 +100,7 @@ char *
 ngx_http_lua_ssl_sess_store_by_lua(ngx_conf_t *cf, ngx_command_t *cmd,
     void *conf)
 {
-    u_char                      *p;
+    u_char                      *cache_key = NULL;
     u_char                      *name;
     ngx_str_t                   *value;
     ngx_http_lua_srv_conf_t     *lscf = conf;
@@ -125,47 +127,35 @@ ngx_http_lua_ssl_sess_store_by_lua(ngx_conf_t *cf, ngx_command_t *cmd,
 
     if (cmd->post == ngx_http_lua_ssl_sess_store_handler_file) {
         /* Lua code in an external file */
-
         name = ngx_http_lua_rebase_path(cf->pool, value[1].data,
                                         value[1].len);
         if (name == NULL) {
             return NGX_CONF_ERROR;
         }
 
+        cache_key = ngx_http_lua_gen_file_cache_key(cf, value[1].data,
+                                                    value[1].len);
+        if (cache_key == NULL) {
+            return NGX_CONF_ERROR;
+        }
+
         lscf->srv.ssl_sess_store_src.data = name;
         lscf->srv.ssl_sess_store_src.len = ngx_strlen(name);
 
-        p = ngx_palloc(cf->pool, NGX_HTTP_LUA_FILE_KEY_LEN + 1);
-        if (p == NULL) {
-            return NGX_CONF_ERROR;
-        }
-
-        lscf->srv.ssl_sess_store_src_key = p;
-
-        p = ngx_copy(p, NGX_HTTP_LUA_FILE_TAG, NGX_HTTP_LUA_FILE_TAG_LEN);
-        p = ngx_http_lua_digest_hex(p, value[1].data, value[1].len);
-        *p = '\0';
-
     } else {
-        /* inlined Lua code */
-
-        lscf->srv.ssl_sess_store_src = value[1];
-
-        p = ngx_palloc(cf->pool,
-                       sizeof("ssl_session_store_by_lua") +
-                       NGX_HTTP_LUA_INLINE_KEY_LEN);
-        if (p == NULL) {
+        cache_key = ngx_http_lua_gen_chunk_cache_key(cf,
+                                                     "ssl_session_store_by_lua",
+                                                     value[1].data,
+                                                     value[1].len);
+        if (cache_key == NULL) {
             return NGX_CONF_ERROR;
         }
 
-        lscf->srv.ssl_sess_store_src_key = p;
-
-        p = ngx_copy(p, "ssl_session_store_by_lua",
-                     sizeof("ssl_session_store_by_lua") - 1);
-        p = ngx_copy(p, NGX_HTTP_LUA_INLINE_TAG, NGX_HTTP_LUA_INLINE_TAG_LEN);
-        p = ngx_http_lua_digest_hex(p, value[1].data, value[1].len);
-        *p = '\0';
+        /* Don't eval nginx variables for inline lua code */
+        lscf->srv.ssl_sess_store_src = value[1];
     }
+
+    lscf->srv.ssl_sess_store_src_key = cache_key;
 
     return NGX_CONF_OK;
 }
@@ -176,6 +166,9 @@ int
 ngx_http_lua_ssl_sess_store_handler(ngx_ssl_conn_t *ssl_conn,
     ngx_ssl_session_t *sess)
 {
+#if defined(NGX_SSL_TLSv1_3) && defined(TLS1_3_VERSION)
+    int                              tls_version;
+#endif
     const u_char                    *sess_id;
     unsigned int                     sess_id_len;
     lua_State                       *L;
@@ -188,6 +181,18 @@ ngx_http_lua_ssl_sess_store_handler(ngx_ssl_conn_t *ssl_conn,
     ngx_http_core_loc_conf_t        *clcf;
 
     c = ngx_ssl_get_connection(ssl_conn);
+
+#if defined(NGX_SSL_TLSv1_3) && defined(TLS1_3_VERSION)
+    tls_version = SSL_version(ssl_conn);
+
+    if (tls_version >= TLS1_3_VERSION) {
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, c->log, 0,
+                       "ssl_session_store_by_lua*: skipped since "
+                       "TLS version >= 1.3 (%xd)", tls_version);
+
+        return 0;
+    }
+#endif
 
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, c->log, 0,
                    "ssl session store: connection reusable: %ud", c->reusable);

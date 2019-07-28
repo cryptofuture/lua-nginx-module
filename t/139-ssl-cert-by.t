@@ -574,7 +574,7 @@ failed to do SSL handshake: handshake failed
 --- error_log eval
 [
 'lua_certificate_by_lua: handler return value: -1, cert cb exit code: 0',
-qr/\[crit\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
+qr/\[info\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
 'lua exit with code -1',
 ]
 
@@ -715,7 +715,7 @@ failed to do SSL handshake: handshake failed
 --- error_log eval
 [
 'lua_certificate_by_lua: cert cb exit code: 0',
-qr/\[crit\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
+qr/\[info\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
 'lua exit with code -1',
 ]
 
@@ -786,7 +786,7 @@ failed to do SSL handshake: handshake failed
 [
 'runtime error: ssl_certificate_by_lua:2: bad bad bad',
 'lua_certificate_by_lua: handler return value: 500, cert cb exit code: 0',
-qr/\[crit\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
+qr/\[info\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
 qr/context: ssl_certificate_by_lua\*, client: \d+\.\d+\.\d+\.\d+, server: \d+\.\d+\.\d+\.\d+:\d+/,
 ]
 
@@ -858,7 +858,7 @@ failed to do SSL handshake: handshake failed
 [
 'runtime error: ssl_certificate_by_lua:3: bad bad bad',
 'lua_certificate_by_lua: cert cb exit code: 0',
-qr/\[crit\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
+qr/\[info\] .*? SSL_do_handshake\(\) failed .*?cert cb error/,
 ]
 
 --- no_error_log
@@ -1046,7 +1046,7 @@ failed to do SSL handshake: handshake failed
 [
 'lua ssl server name: "test.com"',
 'ssl_certificate_by_lua:1: API disabled in the context of ssl_certificate_by_lua*',
-qr/\[crit\] .*?cert cb error/,
+qr/\[info\] .*?cert cb error/,
 ]
 
 --- no_error_log
@@ -1775,7 +1775,7 @@ failed to do SSL handshake: handshake failed
 --- error_log eval
 [
 qr/\[alert\] .*? no ssl_certificate_by_lua\* defined in server test2\.com\b/,
-qr/\[crit\] .*? SSL_do_handshake\(\) failed\b/,
+qr/\[info\] .*? SSL_do_handshake\(\) failed\b/,
 ]
 
 
@@ -1870,7 +1870,7 @@ failed to do SSL handshake: handshake failed
 --- error_log eval
 [
 qr/\[alert\] .*? no ssl_certificate_by_lua\* defined in server ~test2\\\.com\b/,
-qr/\[crit\] .*? SSL_do_handshake\(\) failed\b/,
+qr/\[info\] .*? SSL_do_handshake\(\) failed\b/,
 ]
 
 
@@ -2075,3 +2075,70 @@ client socket file:
 --- no_error_log
 [error]
 [alert]
+
+
+
+=== TEST 24: ssl_certificate_by_lua* can yield when reading early data
+--- skip_openssl: 6: < 1.1.1
+--- http_config
+    server {
+        listen unix:$TEST_NGINX_HTML_DIR/nginx.sock ssl;
+        server_name test.com;
+        ssl_certificate ../../cert/test.crt;
+        ssl_certificate_key ../../cert/test.key;
+        ssl_early_data on;
+        server_tokens off;
+
+        ssl_certificate_by_lua_block {
+            local begin = ngx.now()
+            ngx.sleep(0.1)
+            print("elapsed in ssl_certificate_by_lua*: ", ngx.now() - begin)
+        }
+    }
+--- config
+    server_tokens off;
+    lua_ssl_trusted_certificate ../../cert/test.crt;
+    lua_ssl_verify_depth 3;
+
+    location /t {
+        content_by_lua_block {
+            do
+                local sock = ngx.socket.tcp()
+
+                sock:settimeout(2000)
+
+                local ok, err = sock:connect("unix:$TEST_NGINX_HTML_DIR/nginx.sock")
+                if not ok then
+                    ngx.say("failed to connect: ", err)
+                    return
+                end
+
+                ngx.say("connected: ", ok)
+
+                local sess, err = sock:sslhandshake(false, nil, true, false)
+                if not sess then
+                    ngx.say("failed to do SSL handshake: ", err)
+                    return
+                end
+
+                ngx.say("ssl handshake: ", type(sess))
+            end  -- do
+        }
+    }
+--- request
+GET /t
+--- response_body
+connected: 1
+ssl handshake: boolean
+--- grep_error_log eval
+qr/elapsed in ssl_certificate_by_lua\*: 0\.(?:09|1[01])\d+,/,
+--- grep_error_log_out eval
+[
+qr/elapsed in ssl_certificate_by_lua\*: 0\.(?:09|1[01])\d+,/,
+qr/elapsed in ssl_certificate_by_lua\*: 0\.(?:09|1[01])\d+,/,
+qr/elapsed in ssl_certificate_by_lua\*: 0\.(?:09|1[01])\d+,/,
+]
+--- no_error_log
+[error]
+[alert]
+[emerg]

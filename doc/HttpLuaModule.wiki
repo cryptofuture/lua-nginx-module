@@ -12,7 +12,7 @@ Production ready.
 
 = Version =
 
-This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.10.15] released on March 14th, 2019.
+This document describes ngx_lua [https://github.com/openresty/lua-nginx-module/tags v0.10.16], which is not released yet.
 
 = Synopsis =
 <geshi lang="nginx">
@@ -190,6 +190,7 @@ The Lua state (Lua VM instance) is shared across all the requests handled by a s
 
 The latest version of this module is compatible with the following versions of Nginx:
 
+* 1.17.x  (last tested: 1.17.1)
 * 1.15.x  (last tested: 1.15.8)
 * 1.14.x
 * 1.13.x  (last tested: 1.13.6)
@@ -698,27 +699,12 @@ phases.
 = TODO =
 
 * cosocket: implement LuaSocket's unconnected UDP API.
-* port this module to the "datagram" subsystem of NGINX for implementing general UDP servers instead of HTTP
-servers in Lua. For example,
-<geshi lang="lua">
-    datagram {
-        server {
-            listen 1953;
-            handler_by_lua_block {
-                -- custom Lua code implementing the special UDP server...
-            }
-        }
-    }
-</geshi>
-* shm: implement a "shared queue API" to complement the existing [[#lua_shared_dict|shared dict]] API.
 * cosocket: add support in the context of [[#init_by_lua|init_by_lua*]].
 * cosocket: implement the <code>bind()</code> method for stream-typed cosockets.
-* cosocket: pool-based backend concurrency level control: implement automatic <code>connect</code> queueing when the backend concurrency exceeds its connection pool limit.
 * cosocket: review and merge aviramc's [https://github.com/openresty/lua-nginx-module/pull/290 patch] for adding the <code>bsdrecv</code> method.
-* add new API function <code>ngx.resp.add_header</code> to emulate the standard <code>add_header</code> config directive.
+* cosocket: add configure options for different strategies of handling the cosocket connection exceeding in the pools.
 * review and apply vadim-pavlov's patch for [[#ngx.location.capture|ngx.location.capture]]'s <code>extra_headers</code> option
 * use <code>ngx_hash_t</code> to optimize the built-in header look-up process for [[#ngx.req.set_header|ngx.req.set_header]], [[#ngx.header.HEADER|ngx.header.HEADER]], and etc.
-* add configure options for different strategies of handling the cosocket connection exceeding in the pools.
 * add directives to run Lua codes when nginx stops.
 * add <code>ignore_resp_headers</code>, <code>ignore_resp_body</code>, and <code>ignore_resp</code> options to [[#ngx.location.capture|ngx.location.capture]] and [[#ngx.location.capture_multi|ngx.location.capture_multi]] methods, to allow micro performance tuning on the user side.
 * add automatic Lua code time slicing support by yielding and resuming the Lua VM actively via Lua's debug hooks.
@@ -2146,14 +2132,25 @@ while starting NGINX:
     nginx: [emerg] no ssl configured for the server
 </geshi>
 
-This directive currently requires the following NGINX core patch to work correctly:
+This directive requires OpenSSL 1.0.2e or greater.
 
-http://mailman.nginx.org/pipermail/nginx-devel/2016-January/007748.html
+If you are using the [official pre-built
+packages](http://openresty.org/en/linux-packages.html) for
+[OpenResty](https://openresty.org/) 1.9.7.2 or later, then everything should
+work out of the box.
 
-The bundled version of the NGINX core in OpenResty 1.9.7.2 (or above) already has this
-patch applied.
+If you are not using one of the [OpenSSL
+packages](https://openresty.org/en/linux-packages.html) provided by
+[OpenResty](https://openresty.org), you will need to apply patches to OpenSSL
+in order to use this directive:
 
-Furthermore, one needs at least OpenSSL 1.0.2e for this directive to work.
+https://openresty.org/en/openssl-patches.html
+
+Similarly, if you are not using the NGINX core shipped with
+[OpenResty](https://openresty.org) 1.9.7.2 or later, you will need to apply
+patches to the standard NGINX core:
+
+https://openresty.org/en/nginx-ssl-patches.html
 
 This directive was first introduced in the <code>v0.10.0</code> release.
 
@@ -2219,20 +2216,24 @@ But do not forget to comment this line out before publishing your site to the wo
 If you are using the [official pre-built packages](http://openresty.org/en/linux-packages.html) for [OpenResty](https://openresty.org/)
 1.11.2.1 or later, then everything should work out of the box.
 
-If you are using OpenSSL libraries not provided by [OpenResty](https://openresty.org),
-then you need to apply the following patch for OpenSSL 1.0.2h or later:
+If you are not using one of the [OpenSSL
+packages](https://openresty.org/en/linux-packages.html) provided by
+[OpenResty](https://openresty.org), you will need to apply patches to OpenSSL
+in order to use this directive:
 
-https://github.com/openresty/openresty/blob/master/patches/openssl-1.0.2h-sess_set_get_cb_yield.patch
+https://openresty.org/en/openssl-patches.html
 
-If you are not using the NGINX core shipped with [OpenResty](https://openresty.org) 1.11.2.1 or later, then you need to
-apply the following patch to the standard NGINX core 1.11.2 or later:
+Similarly, if you are not using the NGINX core shipped with
+[OpenResty](https://openresty.org) 1.11.2.1 or later, you will need to apply
+patches to the standard NGINX core:
 
-http://openresty.org/download/nginx-1.11.2-nonblocking_ssl_handshake_hooks.patch
+https://openresty.org/en/nginx-ssl-patches.html
 
 This directive was first introduced in the <code>v0.10.6</code> release.
 
-Note that: this directive is only allowed to used in '''http context''' from the <code>v0.10.7</code> release
-(because SSL session resumption happens before server name dispatch).
+Note that this directive can only be used in the '''http context''' starting
+with the <code>v0.10.7</code> release since SSL session resumption happens
+before server name dispatch.
 
 == ssl_session_fetch_by_lua_file ==
 
@@ -3123,7 +3124,7 @@ The <code>args</code> option can also take plain query strings:
 
 <geshi lang="lua">
     ngx.location.capture('/foo?a=1',
-        { args = 'b=3&c=%3a' } }
+        { args = 'b=3&c=%3a' }
     )
 </geshi>
 
@@ -3466,6 +3467,11 @@ will result in
 to be returned when reading <code>ngx.header.Foo</code>.
 
 Note that <code>ngx.header</code> is not a normal Lua table and as such, it is not possible to iterate through it using the Lua <code>ipairs</code> function.
+
+Note: <code>HEADER</code> and <code>VALUE</code> will be truncated if they
+contain the <code>\r</code> or <code>\n</code> characters. The truncated values
+will contain all characters up to (and excluding) the first occurrence of
+<code>\r</code> or <code>\n</code>.
 
 For reading ''request'' headers, use the [[#ngx.req.get_headers|ngx.req.get_headers]] function instead.
 
@@ -4300,6 +4306,13 @@ It is recommended that a coding style that combines this method call with the <c
 '''context:''' ''rewrite_by_lua*, access_by_lua*, content_by_lua*''
 
 Issue an <code>HTTP 301</code> or <code>302</code> redirection to <code>uri</code>.
+
+Notice: the <code>uri</code> should not contains <code>\r</code> or <code>\n</code>, otherwise, the characters after <code>\r</code> or <code>\n</code> will be truncated, including the <code>\r</code> or <code>\n</code> bytes themself.
+
+The <code>uri</code> argument will be truncated if it contains the
+<code>\r</code> or <code>\n</code> characters. The truncated value will contain
+all characters up to (and excluding) the first occurrence of <code>\r</code> or
+<code>\n</code>.
 
 The optional <code>status</code> parameter specifies the HTTP status code to be used. The following status codes are supported right now:
 
