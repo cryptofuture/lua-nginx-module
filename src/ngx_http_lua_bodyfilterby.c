@@ -15,12 +15,9 @@
 #include "ngx_http_lua_exception.h"
 #include "ngx_http_lua_util.h"
 #include "ngx_http_lua_pcrefix.h"
-#include "ngx_http_lua_time.h"
 #include "ngx_http_lua_log.h"
-#include "ngx_http_lua_regex.h"
 #include "ngx_http_lua_cache.h"
 #include "ngx_http_lua_headers.h"
-#include "ngx_http_lua_variable.h"
 #include "ngx_http_lua_string.h"
 #include "ngx_http_lua_misc.h"
 #include "ngx_http_lua_consts.h"
@@ -319,11 +316,7 @@ ngx_http_lua_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         return NGX_ERROR;
     }
 
-#if nginx_version >= 1001004
     ngx_chain_update_chains(r->pool,
-#else
-    ngx_chain_update_chains(
-#endif
                             &ctx->free_bufs, &ctx->busy_bufs, &out,
                             (ngx_buf_tag_t) &ngx_http_lua_module);
 

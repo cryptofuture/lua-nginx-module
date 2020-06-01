@@ -66,7 +66,7 @@ enum {
     FOUND_RIGHT_LBRACKET,
     FOUND_COMMENT_LINE,
     FOUND_DOUBLE_QUOTED,
-    FOUND_SINGLE_QUOTED
+    FOUND_SINGLE_QUOTED,
 };
 
 
@@ -180,6 +180,17 @@ ngx_http_lua_code_cache(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
 
 char *
+ngx_http_lua_load_resty_core(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
+{
+    ngx_conf_log_error(NGX_LOG_WARN, cf, 0,
+                       "lua_load_resty_core is deprecated (the lua-resty-core "
+                       "library is required since ngx_lua v0.10.16)");
+
+    return NGX_CONF_OK;
+}
+
+
+char *
 ngx_http_lua_package_cpath(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
     ngx_http_lua_main_conf_t *lmcf = conf;
@@ -218,6 +229,30 @@ ngx_http_lua_package_path(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     lmcf->lua_path.data = value[1].data;
 
     return NGX_CONF_OK;
+}
+
+
+char *
+ngx_http_lua_regex_cache_max_entries(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+#if (NGX_PCRE)
+    return ngx_conf_set_num_slot(cf, cmd, conf);
+#else
+    return NGX_CONF_OK;
+#endif
+}
+
+
+char *
+ngx_http_lua_regex_match_limit(ngx_conf_t *cf, ngx_command_t *cmd,
+    void *conf)
+{
+#if (NGX_PCRE)
+    return ngx_conf_set_num_slot(cf, cmd, conf);
+#else
+    return NGX_CONF_OK;
+#endif
 }
 
 
@@ -290,7 +325,7 @@ ngx_http_lua_set_by_lua(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 char *
 ngx_http_lua_set_by_lua_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
-    u_char              *cache_key;
+    u_char              *cache_key = NULL;
     ngx_str_t           *value;
     ngx_str_t            target;
     ndk_set_var_t        filter;
@@ -318,8 +353,6 @@ ngx_http_lua_set_by_lua_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         return NGX_CONF_ERROR;
     }
 
-    filter_data->size = filter.size;
-
     ngx_memzero(&ccv, sizeof(ngx_http_compile_complex_value_t));
     ccv.cf = cf;
     ccv.value = &value[2];
@@ -336,9 +369,11 @@ ngx_http_lua_set_by_lua_file(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         if (cache_key == NULL) {
             return NGX_CONF_ERROR;
         }
-
-        filter_data->key = cache_key;
     }
+
+    filter_data->key = cache_key;
+    filter_data->ref = LUA_REFNIL;
+    filter_data->size = filter.size;
 
     ngx_str_null(&filter_data->script);
 
@@ -467,10 +502,6 @@ ngx_http_lua_rewrite_by_lua(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_http_compile_complex_value_t         ccv;
 
     dd("enter");
-
-#if defined(nginx_version) && nginx_version >= 8042 && nginx_version <= 8053
-    return "does not work with " NGINX_VER;
-#endif
 
     /*  must specify a content handler */
     if (cmd->post == NULL) {
@@ -1265,7 +1296,7 @@ ngx_http_lua_conf_lua_block_parse(ngx_conf_t *cf, ngx_command_t *cmd)
     ngx_array_t      *saved;
     enum {
         parse_block = 0,
-        parse_param
+        parse_param,
     } type;
 
     if (cf->conf_file->file.fd != NGX_INVALID_FILE) {
@@ -1415,7 +1446,7 @@ ngx_http_lua_conf_read_lua_token(ngx_conf_t *cf,
     ngx_http_lua_block_parser_ctx_t *ctx)
 {
     enum {
-        OVEC_SIZE = 2
+        OVEC_SIZE = 2,
     };
     int          i, rc;
     int          ovec[OVEC_SIZE];
@@ -1426,12 +1457,12 @@ ngx_http_lua_conf_read_lua_token(ngx_conf_t *cf,
     ngx_uint_t   start_line;
     ngx_str_t   *word;
     ngx_buf_t   *b;
-#if nginx_version >= 1009002
+#if (nginx_version >= 1009002)
     ngx_buf_t   *dump;
 #endif
 
     b = cf->conf_file->buffer;
-#if nginx_version >= 1009002
+#if (nginx_version >= 1009002)
     dump = cf->conf_file->dump;
 #endif
     start = b->pos;
@@ -1502,7 +1533,7 @@ ngx_http_lua_conf_read_lua_token(ngx_conf_t *cf,
             b->last = b->start + len + n;
             start = b->start;
 
-#if nginx_version >= 1009002
+#if (nginx_version >= 1009002)
             if (dump) {
                 dump->last = ngx_cpymem(dump->last, b->start + len, size);
             }

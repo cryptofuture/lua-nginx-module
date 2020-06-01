@@ -54,8 +54,8 @@ static ngx_int_t ngx_http_lua_balancer_get_peer(ngx_peer_connection_t *pc,
     void *data);
 static ngx_int_t ngx_http_lua_balancer_by_chunk(lua_State *L,
     ngx_http_request_t *r);
-void ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc, void *data,
-    ngx_uint_t state);
+static void ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc,
+    void *data, ngx_uint_t state);
 
 
 ngx_int_t
@@ -399,7 +399,7 @@ ngx_http_lua_balancer_by_chunk(lua_State *L, ngx_http_request_t *r)
 }
 
 
-void
+static void
 ngx_http_lua_balancer_free_peer(ngx_peer_connection_t *pc, void *data,
     ngx_uint_t state)
 {
@@ -456,8 +456,6 @@ ngx_http_lua_balancer_save_session(ngx_peer_connection_t *pc, void *data)
 
 #endif
 
-
-#ifndef NGX_LUA_NO_FFI_API
 
 int
 ngx_http_lua_ffi_balancer_set_current_peer(ngx_http_request_t *r,
@@ -754,4 +752,5 @@ ngx_http_lua_ffi_balancer_get_last_failure(ngx_http_request_t *r,
     return bp->last_peer_state;
 }
 
-#endif  /* NGX_LUA_NO_FFI_API */
+
+/* vi:set ft=c ts=4 sw=4 et fdm=marker: */

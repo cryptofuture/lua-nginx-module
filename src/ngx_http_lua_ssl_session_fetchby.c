@@ -267,26 +267,11 @@ ngx_http_lua_ssl_sess_fetch_handler(ngx_ssl_conn_t *ssl_conn,
 
     clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
 
-#if defined(nginx_version) && nginx_version >= 1003014
-
-#   if nginx_version >= 1009000
-
+#if (nginx_version >= 1009000)
     ngx_set_connection_log(fc, clcf->error_log);
 
-#   else
-
-    ngx_http_set_connection_log(fc, clcf->error_log);
-
-#   endif
-
 #else
-
-    fc->log->file = clcf->error_log->file;
-
-    if (!(fc->log->log_level & NGX_LOG_DEBUG_CONNECTION)) {
-        fc->log->log_level = clcf->error_log->log_level;
-    }
-
+    ngx_http_set_connection_log(fc, clcf->error_log);
 #endif
 
     if (cctx == NULL) {
@@ -562,8 +547,6 @@ ngx_http_lua_ssl_sess_fetch_by_chunk(lua_State *L, ngx_http_request_t *r)
 }
 
 
-#ifndef NGX_LUA_NO_FFI_API
-
 /* de-serialized a SSL session and set it back to the request at lua context */
 int
 ngx_http_lua_ffi_ssl_set_serialized_session(ngx_http_request_t *r,
@@ -614,8 +597,6 @@ ngx_http_lua_ffi_ssl_set_serialized_session(ngx_http_request_t *r,
 
     return NGX_OK;
 }
-
-#endif  /* NGX_LUA_NO_FFI_API */
 
 
 #endif /* NGX_HTTP_SSL */

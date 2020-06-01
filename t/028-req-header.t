@@ -8,7 +8,7 @@ use Test::Nginx::Socket::Lua;
 
 repeat_each(2);
 
-plan tests => repeat_each() * (2 * blocks() + 44);
+plan tests => repeat_each() * (2 * blocks() + 48);
 
 #no_diff();
 no_long_string();
@@ -2030,3 +2030,79 @@ localhost
 new
 --- no_error_log
 [error]
+
+
+
+=== TEST 62: unsafe header name (with '\r')
+--- config
+    location /req-header {
+        rewrite_by_lua_block {
+            ngx.req.set_header("Foo\rfoo", "new value");
+        }
+
+        echo "Foo: $http_foo";
+    }
+--- request
+GET /req-header
+--- error_code: 500
+--- error_log
+unsafe byte "0xd" in header name "Foo\x0Dfoo"
+failed to set header
+
+
+
+=== TEST 63: unsafe header value (with '\n')
+--- config
+    location /req-header {
+        rewrite_by_lua_block {
+            ngx.req.set_header("Foo", "new\nvalue");
+        }
+
+        echo "Foo: $http_foo";
+    }
+--- request
+GET /req-header
+--- error_code: 500
+--- error_log
+unsafe byte "0xa" in header value "new\x0Avalue"
+failed to set header
+
+
+
+=== TEST 64: multiple unsafe header values (with '\n' and '\t')
+--- config
+    location /req-header {
+        rewrite_by_lua_block {
+            ngx.req.set_header("Foo", { "new\nvalue", "foo\tbar" } );
+        }
+
+        content_by_lua_block {
+            ngx.say(table.concat(ngx.req.get_headers()["foo"], ", "), ".")
+        }
+    }
+--- request
+GET /req-header
+--- error_code: 500
+--- error_log
+unsafe byte "0xa" in header value "new\x0Avalue"
+failed to set header
+
+
+
+=== TEST 65: unsafe names/values logging escapes '"' and '\' characters
+--- config
+    location /req-header {
+        rewrite_by_lua_block {
+            ngx.req.set_header("Foo", "\"new\nvalue\\\"");
+        }
+
+        content_by_lua_block {
+            ngx.say(table.concat(ngx.req.get_headers()["foo"], ", "), ".")
+        }
+    }
+--- request
+GET /req-header
+--- error_code: 500
+--- error_log
+unsafe byte "0xa" in header value "\x22new\x0Avalue\x5C\x22"
+failed to set header

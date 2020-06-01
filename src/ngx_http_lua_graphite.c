@@ -54,11 +54,8 @@ ngx_http_lua_graphite(lua_State *L) {
         return 0;
 
     double value = lua_tonumber(L, 3);
-    const char *config = NULL;
-    if (n == 3)
-        config = lua_tostring(L, 4);
 
-    ngx_http_graphite(r, &name, value, config);
+    ngx_http_graphite(r, &name, value);
 
     return 0;
 }
